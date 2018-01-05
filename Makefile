@@ -1,41 +1,56 @@
-TOOLCHAIN ?= ./i686-toolchain
+# Functions
+findfiles = $(foreach ext, c cpp m mm s, $(shell find $(1) -name '*.$(ext)'))
+getobjs = $(foreach ext, c cpp m mm s, $(filter %.o,$(patsubst %.$(ext),%.o,$(1))))
+
+# Toolchain
 TOOLCHAIN ?= ./i686-toolchain
 
 AS = $(TOOLCHAIN)/bin/i686-elf-as
 LD = $(TOOLCHAIN)/bin/i686-elf-ld
 CC = $(TOOLCHAIN)/bin/i686-elf-gcc
 ISO_MAKER = $(TOOLCHAIN)/bin/grub-mkrescue
+EMU = qemu-system-x86_64
 
 # turn off annoying warnings
 CC_WARNING_FLAGS = -Wno-unused-parameter
 CFLAGS = -ffreestanding -std=gnu99 -Wall -Wextra -I./src -O2 $(CC_WARNING_FLAGS)
 LDFLAGS = -ffreestanding -nostdlib -lgcc -O2
 
-SRC_DIR = ./src
+# Directories
+SRC_DIR = src
+OBJ_DIR = objs
+ISO_DIR = isodir
 
-OBJECTS = kernel.o boot.o vga_screen.o ctype.o printf.o string.o memory.o boot_info.o assert.o pmm.o
+# Files
+FILES = $(call findfiles,$(SRC_DIR))
+OBJECTS = $(patsubst $(SRC_DIR)/%,$(OBJ_DIR)/$(SRC_DIR)/%,$(call getobjs, $(FILES)))
+ISO = axle.iso
 
-all:
-	# compile step
-	$(AS) -c $(SRC_DIR)/kernel/boot.s -o boot.o
-	$(CC) -c $(SRC_DIR)/kernel/kernel.c -o kernel.o $(CFLAGS)
-	$(CC) -c $(SRC_DIR)/kernel/boot_info.c -o boot_info.o $(CFLAGS)
-	$(CC) -c $(SRC_DIR)/kernel/assert.c -o assert.o $(CFLAGS)
+# Rules
+all: axle.iso
+	@echo OK
 
-	$(CC) -c $(SRC_DIR)/kernel/pmm/pmm.c -o pmm.o $(CFLAGS)
-	$(CC) -c $(SRC_DIR)/kernel/drivers/vga_screen/vga_screen.c -o vga_screen.o $(CFLAGS)
-
-	$(CC) -c $(SRC_DIR)/std/ctype.c -o ctype.o $(CFLAGS)
-	$(CC) -c $(SRC_DIR)/std/printf.c -o printf.o $(CFLAGS)
-	$(CC) -c $(SRC_DIR)/std/string.c -o string.o $(CFLAGS)
-	$(CC) -c $(SRC_DIR)/std/memory.c -o memory.o $(CFLAGS)
-	
-	# link step
-	$(CC) -T link.ld -o axle.bin $(LDFLAGS) $(OBJECTS)
-	
-	cp axle.bin isodir/boot/axle.bin
-	cp grub.cfg isodir/boot/grub/grub.cfg
-	$(ISO_MAKER) -d $(TOOLCHAIN)/lib/grub/i386-pc -o axle.iso isodir
+clean:
+	@rm -r $(OBJ_DIR) $(ISO_DIR) $(ISO)
 
 run:
-	qemu-system-x86_64 -monitor stdio -cdrom axle.iso
+	$(EMU) -monitor stdio -cdrom $(ISO)
+
+$(OBJ_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $$(dirname $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.s
+	@mkdir -p $$(dirname $@)
+	$(AS) -c $< -o $@
+
+$(ISO_DIR)/boot/axle.bin: $(OBJECTS)
+	@mkdir -p $$(dirname $@)
+	$(CC) $(LDFLAGS) -T link.ld -o $@ $^
+
+$(ISO_DIR)/boot/grub/grub.cfg: grub.cfg
+	@mkdir -p $$(dirname $@)
+	cp $< $@
+
+$(ISO): $(ISO_DIR)/boot/axle.bin $(ISO_DIR)/boot/grub/grub.cfg
+	$(ISO_MAKER) -d $(TOOLCHAIN)/lib/grub/i386-pc -o $@ $(ISO_DIR)
