@@ -36,7 +36,6 @@ _start:
 	# paging is off
 
 	# set esp to the stack we defined in .bss
-	mov $kernel_stack, %esp
 	mov $_kernel_stack, %esp
 
 	# do crucial environment setup here!
