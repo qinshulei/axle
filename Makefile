@@ -53,4 +53,4 @@ $(ISO_DIR)/boot/grub/grub.cfg: grub.cfg
 	cp $< $@
 
 $(ISO): $(ISO_DIR)/boot/axle.bin $(ISO_DIR)/boot/grub/grub.cfg
-	$(ISO_MAKER) -d $(TOOLCHAIN)/lib/grub/i386-pc -o $@ $(ISO_DIR)
+	$(ISO_MAKER) --locale-directory=$(TOOLCHAIN)/share/locale -d $(TOOLCHAIN)/lib/grub/i386-pc -o $@ $(ISO_DIR)
